@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "extra": {
+    "contentType": "text/html",
+    "creditsUsed": 1,
+    "proxyUsed": "basic",
+    "scrapeId": "aff2755d-24f6-4e90-96d2-ecd7573504bd",
+    "sourceURL": "https://example.com",
+    "statusCode": 200,
+    "url": "https://example.com",
+    "viewport": "width=device-width, initial-scale=1"
+  },
+  "language": "en",
+  "source_url": null,
+  "title": "Example Domain"
+}

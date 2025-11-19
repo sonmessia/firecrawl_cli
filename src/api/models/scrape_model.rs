@@ -12,6 +12,9 @@ pub enum OutputFormat {
     RawHtml,    // Raw HTML content as-is
     Screenshot, // Screenshot of the page
     Summary,    // AI-generated summary
+    Links,      // List of links found on the page
+    Images,     // Images extracted from the page
+    Branding,   // Branding information
 }
 
 // Available parser types for special content handling
@@ -46,6 +49,70 @@ pub struct WaitAction {
     pub milliseconds: u64, // Duration to wait in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>, // CSS selector to wait for (optional)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClickAction {
+    pub selector: String, // CSS selector to click
+    #[serde(default)]
+    pub all: bool, // Whether to click all matching elements
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PressAKeyAction {
+    pub key: String, // Key to press
+}
+
+fn down() -> String {
+    "down".to_string()
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScrollAction {
+    #[serde(default = "down")]
+    pub direction: String, // Direction to scroll (e.g., "down", "up")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selector: Option<String>, // CSS selector to scroll within (optional)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecuteJavaScriptAction {
+    pub script: String, // JavaScript code to execute
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum Format {
+    A0,
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    Letter,
+    Legal,
+    Tabloid,
+    Ledger,
+}
+
+fn default_scale() -> f64 {
+    1.0
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratePdfAction {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<Format>, // PDF format (e.g., "A4", "Letter")
+    #[serde(default)]
+    pub landscape: bool, // Landscape orientation
+    #[serde(default = "default_scale")]
+    pub scale: f64, // Scale factor (e.g., 1.0 for 100%)
 }
 
 // Available actions to perform during scraping

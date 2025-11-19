@@ -18,9 +18,13 @@ pub struct Cli {
     #[arg(long, env = "FIRE_API_KEY")]
     pub api_key: Option<String>,
 
+    // Flag to launch TUI mode instead of CLI commands
+    #[arg(short, long, help = "Launch Terminal User Interface")]
+    pub tui: bool,
+
     // Subcommands for different operations (scrape/crawl)
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 // Enumeration of available CLI commands

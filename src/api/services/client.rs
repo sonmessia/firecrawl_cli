@@ -9,6 +9,7 @@ use crate::api::{
 };
 
 // Main HTTP client for interacting with the Firecrawl API
+#[derive(Clone)]
 pub struct FirecrawlClient {
     client: Client,          // Reqwest HTTP client
     base_url: String,        // Base URL for the API

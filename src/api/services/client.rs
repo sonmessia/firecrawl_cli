@@ -8,14 +8,17 @@ use crate::api::{
     ScrapeData, ScrapeRequest,
 };
 
+// Main HTTP client for interacting with the Firecrawl API
 pub struct FirecrawlClient {
-    client: Client,
-    base_url: String,
-    api_key: Option<String>,
+    client: Client,          // Reqwest HTTP client
+    base_url: String,        // Base URL for the API
+    api_key: Option<String>, // Optional API key for authentication
 }
 
 impl FirecrawlClient {
+    // Create a new FirecrawlClient with the given base URL and optional API key
     pub fn new(base_url: &str, api_key: Option<&str>) -> Result<Self> {
+        // Build HTTP client with 5-minute timeout
         let client = Client::builder()
             .timeout(Duration::from_secs(300))
             .build()?;
@@ -27,6 +30,7 @@ impl FirecrawlClient {
         })
     }
 
+    // Add authorization header to requests if API key is available
     fn add_auth_headers(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         if let Some(api_key) = &self.api_key {
             request.header("Authorization", format!("Bearer {}", api_key))
@@ -35,7 +39,9 @@ impl FirecrawlClient {
         }
     }
 
+    // Scrape a single URL and return the extracted content
     pub async fn scrape(&self, url: &str) -> Result<ScrapeData> {
+        // Build scrape request with multiple output formats
         let request = ScrapeRequest {
             url: url.to_string(),
             formats: vec![
@@ -47,6 +53,7 @@ impl FirecrawlClient {
             ..Default::default()
         };
 
+        // Send scrape request to the API
         let response = self
             .add_auth_headers(
                 self.client
@@ -56,6 +63,7 @@ impl FirecrawlClient {
             .send()
             .await?;
 
+        // Handle error responses
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
@@ -66,6 +74,7 @@ impl FirecrawlClient {
             ));
         }
 
+        // Parse and return the response
         let api_response: ApiResponse<ScrapeData> = response.json().await?;
 
         if api_response.success {
@@ -75,14 +84,16 @@ impl FirecrawlClient {
         }
     }
 
+    // Crawl a URL (with optional page limit) and return results from all crawled pages
     pub async fn crawl(&self, url: &str, limit: Option<u32>) -> Result<Vec<ScrapeData>> {
-        // Start crawl job
+        // Start the crawl job
         let request = CrawlRequest {
             url: url.to_string(),
             limit,
             ..Default::default()
         };
 
+        // Send crawl start request to the API
         let response = self
             .add_auth_headers(
                 self.client
@@ -92,16 +103,18 @@ impl FirecrawlClient {
             .send()
             .await?;
 
+        // Handle error responses
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(anyhow!("Crawl start failed: {} - {}", status, error_text));
         }
 
+        // Extract job ID from the response
         let start_response: CrawlStartResponse = response.json().await?;
         let job_id = start_response.job_id;
 
-        // Poll for completion
+        // Poll for crawl completion
         loop {
             let state = self.check_crawl_status(&job_id).await?;
 
@@ -111,6 +124,7 @@ impl FirecrawlClient {
                 CrawlState::InProgress {
                     completed, total, ..
                 } => {
+                    // Display progress updates
                     println!("⏳ Progress: {}/{}", completed, total);
                 }
                 CrawlState::Started { .. } => {
@@ -118,11 +132,14 @@ impl FirecrawlClient {
                 }
             }
 
+            // Wait 2 seconds before next status check
             sleep(Duration::from_secs(2)).await;
         }
     }
 
+    // Check the status of a crawl job using its ID
     async fn check_crawl_status(&self, job_id: &str) -> Result<CrawlState> {
+        // Send status check request to the API
         let response = self
             .add_auth_headers(
                 self.client
@@ -131,10 +148,12 @@ impl FirecrawlClient {
             .send()
             .await?;
 
+        // Handle error responses
         if !response.status().is_success() {
             return Err(anyhow!("Status check failed"));
         }
 
+        // Parse and categorize the response
         let status_response: CrawlStatusResponse = response.json().await?;
 
         match status_response.status.as_str() {

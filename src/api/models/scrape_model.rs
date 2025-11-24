@@ -3,19 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 
-// Available output formats for scrape operations
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum OutputFormat {
-    Markdown,   // Markdown text content
-    Html,       // Processed HTML content
-    RawHtml,    // Raw HTML content as-is
-    Screenshot, // Screenshot of the page
-    Summary,    // AI-generated summary
-    Links,      // List of links found on the page
-    Images,     // Images extracted from the page
-    Branding,   // Branding information
-}
+// Re-export the CLI OutputFormat to maintain consistency
+pub use crate::cli::OutputFormat;
 
 // Available parser types for special content handling
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -208,8 +197,19 @@ pub struct ApiError {
     pub message: String, // Human-readable error message
 }
 
+// Re-export the CLI ScrapeOptions to maintain consistency
+pub use crate::cli::ScrapeOptions;
+
+// Scrape response wrapper
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ScrapeResponse {
+    pub success: bool,
+    pub data: Option<ScrapeData>,
+    pub error: Option<String>,
+}
+
 // Main scrape response data structure containing all extracted content
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ScrapeData {
     // Basic information
@@ -314,7 +314,7 @@ impl fmt::Display for ScrapeData {
 
         // Show extra metadata count
         if !self.metadata.extra.is_empty() {
-            writeln!(f, "  Extra metadata fields: {}", self.metadata.extra.len())?;
+            writeln!(f, "Extra metadata fields: {}", self.metadata.extra.len())?;
         }
 
         Ok(())
@@ -322,7 +322,7 @@ impl fmt::Display for ScrapeData {
 }
 
 // Actions performed during the scraping process
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Actions {
     pub screenshots: Option<Vec<String>>, // List of screenshot paths/URLs
@@ -332,14 +332,14 @@ pub struct Actions {
 }
 
 // Result of a sub-scrape operation
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ScrapeResult {
     pub url: String,          // URL that was sub-scraped
     pub html: Option<String>, // HTML content from sub-scrape
 }
 
 // Result of JavaScript execution
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct JavaScriptReturn {
     #[serde(rename = "type")]
     pub return_type: String, // Type of returned value
@@ -347,7 +347,7 @@ pub struct JavaScriptReturn {
 }
 
 // Change tracking information for comparing with previous scrapes
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeTracking {
     pub previous_scrape_at: Option<String>, // Timestamp of previous scrape
@@ -358,7 +358,7 @@ pub struct ChangeTracking {
 }
 
 // Comprehensive metadata extracted from the scraped page
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     pub title: Option<String>,       // Page title

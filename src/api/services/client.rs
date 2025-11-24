@@ -1,12 +1,15 @@
 use anyhow::{Result, anyhow};
+use chrono;
 use reqwest::Client;
 use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::api::{
-    ApiResponse, CrawlRequest, CrawlStartResponse, CrawlState, CrawlStatusResponse, OutputFormat,
-    ScrapeData, ScrapeRequest,
+    ApiResponse, CrawlRequest, CrawlResponse, CrawlStartResponse, CrawlState, CrawlStatusResponse,
+    OutputFormat, ScrapeData, ScrapeRequest, ScrapeResponse,
 };
+use crate::services::CrawlMonitorService;
+use std::boxed::Box;
 
 // Main HTTP client for interacting with the Firecrawl API
 #[derive(Clone)]
@@ -175,5 +178,117 @@ impl FirecrawlClient {
                 total: status_response.total.unwrap_or(0),
             }),
         }
+    }
+
+    // Alias method for compatibility with existing code
+    pub async fn scrape_url(&self, url: &str) -> Result<ScrapeData> {
+        self.scrape(url).await
+    }
+
+    // Alias method for compatibility with existing code
+    pub async fn crawl_url(&self, request: CrawlRequest) -> Result<CrawlStartResponse> {
+        // Start the crawl job
+        let response = self
+            .add_auth_headers(
+                self.client
+                    .post(format!("{}/crawl", self.base_url))
+                    .json(&request),
+            )
+            .send()
+            .await?;
+
+        // Handle error responses
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(anyhow!("Crawl start failed: {} - {}", status, error_text));
+        }
+
+        // Extract job ID from the response
+        let start_response: CrawlStartResponse = response.json().await?;
+        Ok(start_response)
+    }
+}
+
+// Implement CrawlMonitorService for FirecrawlClient
+impl CrawlMonitorService for FirecrawlClient {
+    fn monitor_crawl_job<'a>(
+        &'a self,
+        job_id: &'a str,
+        progress_callback: Box<dyn FnMut(crate::services::CrawlProgress) + Send + 'a>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = crate::errors::FirecrawlResult<Vec<CrawlResponse>>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            let mut results = Vec::new();
+
+            loop {
+                let state = self.check_crawl_status(job_id).await.map_err(|e| {
+                    crate::errors::FirecrawlError::ApiError(crate::errors::ApiError::Other(e))
+                })?;
+
+                match state {
+                    CrawlState::Completed { data, .. } => {
+                        // Convert ScrapeData to CrawlResponse
+                        for (index, scrape_data) in data.into_iter().enumerate() {
+                            let response = CrawlResponse {
+                                id: format!("crawl-result-{}", index),
+                                url: scrape_data.url.unwrap_or_else(|| "unknown".to_string()),
+                                status: "completed".to_string(),
+                                completed_at: Some(chrono::Utc::now()),
+                                markdown: scrape_data.markdown,
+                                html: scrape_data.html,
+                                metadata: crate::api::models::crawl_model::CrawlMetadata {
+                                    title: scrape_data.metadata.title,
+                                    description: scrape_data.metadata.description,
+                                    language: scrape_data.metadata.language,
+                                    keywords: None, // This would need to be populated from extra metadata
+                                    robots: None,
+                                    og_image: None,
+                                    page_title: scrape_data.metadata.title,
+                                    author: None,
+                                    published_date: None,
+                                    modified_date: None,
+                                    site_name: None,
+                                },
+                            };
+                            results.push(response);
+                        }
+                        break Ok(results);
+                    }
+                    CrawlState::Failed { error, .. } => {
+                        break Err(crate::errors::FirecrawlError::ApiError(
+                            crate::errors::ApiError::Other(anyhow!("Crawl failed: {}", error)),
+                        ));
+                    }
+                    CrawlState::InProgress {
+                        completed, total, ..
+                    } => {
+                        let progress = crate::services::CrawlProgress {
+                            completed,
+                            total,
+                            current_url: None,
+                            status: "in_progress".to_string(),
+                        };
+                        progress_callback(progress);
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                    CrawlState::Started { .. } => {
+                        let progress = crate::services::CrawlProgress {
+                            completed: 0,
+                            total: 0,
+                            current_url: None,
+                            status: "started".to_string(),
+                        };
+                        progress_callback(progress);
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
+            }
+        })
     }
 }

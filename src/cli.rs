@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
 // Main CLI structure using clap for argument parsing
 #[derive(Parser)]
@@ -49,4 +50,86 @@ pub enum Commands {
         #[arg(short, long, default_value = "./output")]
         output_dir: PathBuf,
     },
+}
+
+/// Output format options
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum OutputFormat {
+    #[serde(rename = "markdown")]
+    Markdown,
+    #[serde(rename = "html")]
+    Html,
+    #[serde(rename = "json")]
+    Json,
+    #[serde(rename = "raw")]
+    Raw,
+    #[serde(rename = "rawHtml")]
+    RawHtml,
+}
+
+impl Default for OutputFormat {
+    fn default() -> Self {
+        OutputFormat::Markdown
+    }
+}
+
+impl std::fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputFormat::Markdown => write!(f, "markdown"),
+            OutputFormat::Html => write!(f, "html"),
+            OutputFormat::Json => write!(f, "json"),
+            OutputFormat::Raw => write!(f, "raw"),
+            OutputFormat::RawHtml => write!(f, "rawHtml"),
+        }
+    }
+}
+
+/// Scrape operation options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScrapeOptions {
+    pub only_main_content: Option<bool>,
+    pub include_tags: Option<Vec<String>>,
+    pub exclude_tags: Option<Vec<String>>,
+    pub formats: Option<Vec<OutputFormat>>,
+}
+
+impl Default for ScrapeOptions {
+    fn default() -> Self {
+        Self {
+            only_main_content: None,
+            include_tags: None,
+            exclude_tags: None,
+            formats: None,
+        }
+    }
+}
+
+/// Crawl operation options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrawlOptions {
+    pub limit: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formats: Option<Vec<OutputFormat>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub only_main_content: Option<bool>,
+}
+
+impl Default for CrawlOptions {
+    fn default() -> Self {
+        Self {
+            limit: None,
+            formats: None,
+            only_main_content: None,
+        }
+    }
+}
+
+/// Action enum for task types
+#[derive(Debug, Clone)]
+pub enum Action {
+    Scrape,
+    Crawl,
 }

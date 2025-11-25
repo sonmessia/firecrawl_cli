@@ -1,6 +1,6 @@
 use super::scrape_model::{OutputFormat, ScrapeData};
-use serde::{Deserialize, Serialize};
 use chrono;
+use serde::{Deserialize, Serialize};
 
 // Re-export the CLI CrawlOptions to maintain consistency
 pub use crate::cli::CrawlOptions;
@@ -44,7 +44,6 @@ pub struct CrawlResponse {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CrawlMetadata {
     pub title: Option<String>,
-    pub description: Option<String>,
     pub language: Option<String>,
     pub keywords: Option<Vec<String>>,
     pub robots: Option<String>,

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 // Main CLI structure using clap for argument parsing
 #[derive(Parser)]
@@ -8,11 +8,7 @@ use serde::{Deserialize, Serialize};
 #[command(about = "Firecrawl Rust CLI Tool")]
 pub struct Cli {
     // Base URL for the Firecrawl API (defaults to local instance or FIRE_API_URL env var)
-    #[arg(
-        long,
-        env = "FIRE_API_URL",
-        default_value = "http://localhost:3002/v2"
-    )]
+    #[arg(long, env = "FIRE_API_URL", default_value = "http://localhost:3002/v2")]
     pub api_url: String,
 
     // Optional API key for authentication (or FIRE_API_KEY env var)
@@ -65,6 +61,10 @@ pub enum OutputFormat {
     Raw,
     #[serde(rename = "rawHtml")]
     RawHtml,
+    #[serde(rename = "links")]
+    Links,
+    #[serde(rename = "images")]
+    Images,
 }
 
 impl Default for OutputFormat {
@@ -81,6 +81,8 @@ impl std::fmt::Display for OutputFormat {
             OutputFormat::Json => write!(f, "json"),
             OutputFormat::Raw => write!(f, "raw"),
             OutputFormat::RawHtml => write!(f, "rawHtml"),
+            OutputFormat::Links => write!(f, "links"),
+            OutputFormat::Images => write!(f, "images"),
         }
     }
 }

@@ -215,7 +215,7 @@ impl CrawlMonitorService for FirecrawlClient {
     fn monitor_crawl_job<'a>(
         &'a self,
         job_id: &'a str,
-        progress_callback: Box<dyn FnMut(crate::services::CrawlProgress) + Send + 'a>,
+        mut progress_callback: Box<dyn FnMut(crate::services::CrawlProgress) + Send + 'a>,
     ) -> std::pin::Pin<
         Box<
             dyn std::future::Future<Output = crate::errors::FirecrawlResult<Vec<CrawlResponse>>>
@@ -243,8 +243,7 @@ impl CrawlMonitorService for FirecrawlClient {
                                 markdown: scrape_data.markdown,
                                 html: scrape_data.html,
                                 metadata: crate::api::models::crawl_model::CrawlMetadata {
-                                    title: scrape_data.metadata.title,
-                                    description: scrape_data.metadata.description,
+                                    title: scrape_data.metadata.title.clone(),
                                     language: scrape_data.metadata.language,
                                     keywords: None, // This would need to be populated from extra metadata
                                     robots: None,

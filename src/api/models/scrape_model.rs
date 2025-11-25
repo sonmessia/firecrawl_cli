@@ -193,6 +193,7 @@ pub struct ApiResponse<T> {
 // Detailed error information structure
 #[derive(Deserialize, Debug)]
 pub struct ApiError {
+    pub success: bool,   // Always false for errors
     pub code: String,    // Error code identifier
     pub message: String, // Human-readable error message
 }
@@ -216,11 +217,11 @@ pub struct ScrapeData {
     pub url: Option<String>, // The URL that was scraped
 
     // Content in various formats
-    pub markdown: Option<String>,   // Markdown content
-    pub html: Option<String>,       // Processed HTML content
-    pub raw_html: Option<String>,   // Raw HTML content as returned
-    pub screenshot: Option<String>, // Base64-encoded screenshot
-    pub summary: Option<String>,    // AI-generated summary
+    pub markdown: Option<String>,    // Markdown content
+    pub html: Option<String>,        // Processed HTML content
+    pub raw_html: Option<String>,    // Raw HTML content as returned
+    pub images: Option<Vec<String>>, // List of image URLs
+    pub screenshot: Option<String>,  // Base64-encoded screenshot
 
     // Links and navigation
     pub links: Option<Vec<String>>, // List of found links
@@ -248,9 +249,6 @@ impl fmt::Display for ScrapeData {
         if let Some(title) = &self.metadata.title {
             writeln!(f, "  Title: {}", title)?;
         }
-        if let Some(description) = &self.metadata.description {
-            writeln!(f, "  Description: {}", description)?;
-        }
         if let Some(language) = &self.metadata.language {
             writeln!(f, "  Language: {}", language)?;
         }
@@ -261,7 +259,8 @@ impl fmt::Display for ScrapeData {
             ("HTML", self.html.is_some()),
             ("Raw HTML", self.raw_html.is_some()),
             ("Screenshot", self.screenshot.is_some()),
-            ("Summary", self.summary.is_some()),
+            ("Links", self.links.is_some()),
+            ("Images", self.images.is_some()),
         ];
 
         let available_formats: Vec<&str> = content_types
@@ -361,10 +360,9 @@ pub struct ChangeTracking {
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
-    pub title: Option<String>,       // Page title
-    pub description: Option<String>, // Meta description
-    pub language: Option<String>,    // Content language
-    pub source_url: Option<String>,  // Source URL if different from requested URL
+    pub title: Option<String>,      // Page title
+    pub language: Option<String>,   // Content language
+    pub source_url: Option<String>, // Source URL if different from requested URL
 
     // Additional metadata fields are captured here
     #[serde(flatten)]

@@ -6,8 +6,8 @@ use crate::api::services::client::FirecrawlClient;
 use crate::cli::OutputFormat;
 use crate::commands::{Command, CommandObserver, CommandResult, NoOpObserver};
 use crate::errors::{FirecrawlError, FirecrawlResult};
-use crate::storage::ContentRepository;
 use crate::services::CrawlMonitorService;
+use crate::storage::ContentRepository;
 
 /// Command for crawling a URL
 #[derive(Debug, Clone)]
@@ -51,16 +51,19 @@ impl CrawlCommand {
         let crawl_result = client
             .crawl_url(request)
             .await
-            .map_err(FirecrawlError::ApiError)?;
+            .map_err(|e| FirecrawlError::ApiError(e.into()))?;
 
         // Wait for crawl to complete and get results
         let monitor_service = client as &dyn CrawlMonitorService;
         monitor_service
-            .monitor_crawl_job(&crawl_result.job_id, Box::new(|progress| {
-                // Progress callback could be used by observer
-                // For now, we'll just ignore progress updates
-            }))
-            .await?
+            .monitor_crawl_job(
+                &crawl_result.job_id,
+                Box::new(|progress| {
+                    // Progress callback could be used by observer
+                    // For now, we'll just ignore progress updates
+                }),
+            )
+            .await
     }
 }
 

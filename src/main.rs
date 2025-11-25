@@ -28,37 +28,21 @@ async fn main() -> Result<()> {
 
                         // Save HTML content if available
                         if let Some(html) = result.html {
-                            save_html(&output_dir, &url, &html, result.metadata.title.as_deref())
-                                .await?;
+                            save_html(&output_dir, &url, &html, Some("html content")).await?;
                         }
 
                         // Save Markdown content if available
                         if let Some(markdown) = result.markdown {
-                            save_markdown(
-                                &output_dir,
-                                &url,
-                                &markdown,
-                                result.metadata.title.as_deref(),
-                            )
-                            .await?;
+                            save_markdown(&output_dir, &url, &markdown, Some("markdown content"))
+                                .await?;
                         }
 
                         // Save metadata as JSON if there's any metadata available
-                        if !result.metadata.extra.is_empty() || result.metadata.title.is_some() {
+                        if !result.metadata.extra.is_empty() {
                             let metadata = serde_json::json!({
-                                "title": result.metadata.title,
-                                "description": result.metadata.description,
-                                "language": result.metadata.language,
-                                "source_url": result.metadata.source_url,
-                                "extra": result.metadata.extra
+                                "metadata": result.metadata.extra
                             });
-                            save_json(
-                                &output_dir,
-                                &url,
-                                &metadata,
-                                result.metadata.title.as_deref(),
-                            )
-                            .await?;
+                            save_json(&output_dir, &url, &metadata, Some("metadata")).await?;
                         }
 
                         println!("✅ Scrape completed successfully!");
@@ -92,31 +76,21 @@ async fn main() -> Result<()> {
                             // Save markdown content if available
                             if let Some(markdown) = &result.markdown {
                                 let result_url = result.url.as_deref().unwrap_or(&url);
-                                save_markdown(
-                                    &output_dir,
-                                    result_url,
-                                    markdown,
-                                    result.metadata.title.as_deref(),
-                                )
-                                .await?;
+                                save_markdown(&output_dir, result_url, markdown, Some("Metadata"))
+                                    .await?;
                             }
 
                             // Save metadata as JSON if available
-                            if !result.metadata.extra.is_empty() || result.metadata.title.is_some()
-                            {
+                            if !result.metadata.extra.is_empty() {
                                 let result_url = result.url.as_deref().unwrap_or(&url);
                                 let metadata = serde_json::json!({
-                                    "title": result.metadata.title,
-                                    "description": result.metadata.description,
-                                    "language": result.metadata.language,
-                                    "source_url": result.metadata.source_url,
-                                    "extra": result.metadata.extra
+                                    "metadata": result.metadata.extra
                                 });
                                 save_json(
                                     &output_dir,
                                     result_url,
                                     &metadata,
-                                    result.metadata.title.as_deref(),
+                                    Some("Extra Metadata"),
                                 )
                                 .await?;
                             }

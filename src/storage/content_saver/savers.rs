@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use crate::api::models::{scrape_model::ScrapeResponse, crawl_model::CrawlResponse};
 use super::{ContentSaver, StorageError, StorageResult};
+use crate::api::models::{crawl_model::CrawlResponse, scrape_model::ScrapeResponse};
 
 /// Markdown content saver
 pub struct MarkdownSaver;
@@ -19,19 +19,15 @@ impl ContentSaver for MarkdownSaver {
         let filename = self.generate_filename(url, None);
         let file_path = output_dir.join(filename);
 
-        let title = result.data
-            .as_ref()
-            .and_then(|d| d.metadata.title.as_ref())
-            .unwrap_or(&"Untitled".to_string());
-
-        let markdown = result.data
+        let markdown = result
+            .data
             .as_ref()
             .and_then(|d| d.markdown.as_ref())
-            .unwrap_or(&"No content available".to_string());
+            .cloned()
+            .unwrap_or_else(|| "No content available".to_string());
 
         let content = format!(
-            "# {}\n\n**Source:** {}\n\n**Timestamp:** {}\n\n---\n\n{}",
-            title,
+            "# \n**Source:** {}\n\n**Timestamp:** {}\n\n---\n\n{}",
             url,
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
             markdown
@@ -54,13 +50,18 @@ impl ContentSaver for MarkdownSaver {
             let filename = self.generate_filename(&result.url, Some(index));
             let file_path = output_dir.join(filename);
 
+            let markdown = result
+                .markdown
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| "No content available".to_string());
+
             let content = format!(
-                "# {}\n\n**Source:** {}\n\n**Crawl from:** {}\n\n**Timestamp:** {}\n\n---\n\n{}",
-                result.metadata.title.as_ref().unwrap_or(&"Untitled".to_string()),
+                "# \n\n**Source:** {}\n\n**Crawl from:** {}\n\n**Timestamp:** {}\n\n---\n\n{}",
                 result.url,
                 url,
                 chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
-                result.markdown.as_ref().unwrap_or(&"No content available".to_string())
+                markdown
             );
 
             self.write_file(&file_path, &content).await?;
@@ -91,12 +92,17 @@ impl ContentSaver for HtmlSaver {
         let filename = self.generate_filename(url, None);
         let file_path = output_dir.join(filename);
 
-        let scrape_data = result.data.as_ref()
-            .ok_or_else(|| StorageError::UnsupportedContentType("Scrape data not available".to_string()))?;
+        let scrape_data = result.data.as_ref().ok_or_else(|| {
+            StorageError::UnsupportedContentType("Scrape data not available".to_string())
+        })?;
 
-        let html_content = scrape_data.html.as_ref()
+        let html_content = scrape_data
+            .html
+            .as_ref()
             .or(scrape_data.raw_html.as_ref())
-            .ok_or_else(|| StorageError::UnsupportedContentType("HTML content not available".to_string()))?;
+            .ok_or_else(|| {
+                StorageError::UnsupportedContentType("HTML content not available".to_string())
+            })?;
 
         self.write_file(&file_path, html_content).await?;
         Ok(file_path)
@@ -115,10 +121,12 @@ impl ContentSaver for HtmlSaver {
             let filename = self.generate_filename(&result.url, Some(index));
             let file_path = output_dir.join(filename);
 
-            let html_content = result.html.as_ref()
-                .ok_or_else(|| StorageError::UnsupportedContentType(
-                    format!("HTML content not available for {}", result.url)
-                ))?;
+            let html_content = result.html.as_ref().ok_or_else(|| {
+                StorageError::UnsupportedContentType(format!(
+                    "HTML content not available for {}",
+                    result.url
+                ))
+            })?;
 
             self.write_file(&file_path, html_content).await?;
             saved_files.push(file_path);
@@ -162,7 +170,10 @@ impl ContentSaver for JsonSaver {
         self.ensure_directory(output_dir).await?;
 
         // Save crawl results as a single JSON file containing all results
-        let filename = format!("crawl_results_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+        let filename = format!(
+            "crawl_results_{}.json",
+            chrono::Utc::now().format("%Y%m%d_%H%M%S")
+        );
         let file_path = output_dir.join(filename);
 
         let json_content = serde_json::to_string_pretty(results)?;
@@ -191,10 +202,13 @@ impl ContentSaver for RawSaver {
         let filename = self.generate_filename(url, None);
         let file_path = output_dir.join(filename);
 
-        let scrape_data = result.data.as_ref()
-            .ok_or_else(|| StorageError::UnsupportedContentType("Scrape data not available".to_string()))?;
+        let scrape_data = result.data.as_ref().ok_or_else(|| {
+            StorageError::UnsupportedContentType("Scrape data not available".to_string())
+        })?;
 
-        let content = scrape_data.markdown.as_ref()
+        let content = scrape_data
+            .markdown
+            .as_ref()
             .or(scrape_data.html.as_ref())
             .or(scrape_data.raw_html.as_ref())
             .map(|s| s.as_str())
@@ -217,7 +231,9 @@ impl ContentSaver for RawSaver {
             let filename = self.generate_filename(&result.url, Some(index));
             let file_path = output_dir.join(filename);
 
-            let content = result.markdown.as_ref()
+            let content = result
+                .markdown
+                .as_ref()
                 .or(result.html.as_ref())
                 .map(|s| s.as_str())
                 .unwrap_or("No content available");
@@ -233,3 +249,4 @@ impl ContentSaver for RawSaver {
         "txt"
     }
 }
+

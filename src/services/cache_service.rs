@@ -196,15 +196,18 @@ impl CacheService for MemoryCacheService {
             if let Some(entry) = cache.get_mut(&key) {
                 if self.is_expired(entry) {
                     cache.remove(&key);
+                    let cache_len = cache.len();
+                    let scrape_count = cache
+                        .values()
+                        .filter(|e| matches!(e.data, CacheData::ScrapeResult(_)))
+                        .count();
                     drop(cache);
 
                     // Update statistics
                     let mut stats = self.statistics.write().await;
                     stats.cache_misses += 1;
-                    stats.total_entries = cache.len();
-                    stats.scrape_entries = cache.values()
-                        .filter(|e| matches!(e.data, CacheData::ScrapeResult(_)))
-                        .count();
+                    stats.total_entries = cache_len;
+                    stats.scrape_entries = scrape_count;
 
                     return Ok(None);
                 }
@@ -279,15 +282,18 @@ impl CacheService for MemoryCacheService {
             if let Some(entry) = cache.get_mut(&key) {
                 if self.is_expired(entry) {
                     cache.remove(&key);
+                    let cache_len = cache.len();
+                    let crawl_count = cache
+                        .values()
+                        .filter(|e| matches!(e.data, CacheData::CrawlResult(_)))
+                        .count();
                     drop(cache);
 
                     // Update statistics
                     let mut stats = self.statistics.write().await;
                     stats.cache_misses += 1;
-                    stats.total_entries = cache.len();
-                    stats.crawl_entries = cache.values()
-                        .filter(|e| matches!(e.data, CacheData::CrawlResult(_)))
-                        .count();
+                    stats.total_entries = cache_len;
+                    stats.crawl_entries = crawl_count;
 
                     return Ok(None);
                 }
@@ -322,8 +328,12 @@ impl CacheService for MemoryCacheService {
         let crawl_key = Self::generate_key(url, format, "crawl");
 
         let cache = self.cache.read().await;
-        let scrape_exists = cache.get(&scrape_key).map_or(false, |entry| !self.is_expired(entry));
-        let crawl_exists = cache.get(&crawl_key).map_or(false, |entry| !self.is_expired(entry));
+        let scrape_exists = cache
+            .get(&scrape_key)
+            .map_or(false, |entry| !self.is_expired(entry));
+        let crawl_exists = cache
+            .get(&crawl_key)
+            .map_or(false, |entry| !self.is_expired(entry));
 
         Ok(scrape_exists || crawl_exists)
     }
@@ -347,10 +357,12 @@ impl CacheService for MemoryCacheService {
             let cache = self.cache.read().await;
             let mut stats = self.statistics.write().await;
             stats.total_entries = cache.len();
-            stats.scrape_entries = cache.values()
+            stats.scrape_entries = cache
+                .values()
                 .filter(|e| matches!(e.data, CacheData::ScrapeResult(_)))
                 .count();
-            stats.crawl_entries = cache.values()
+            stats.crawl_entries = cache
+                .values()
                 .filter(|e| matches!(e.data, CacheData::CrawlResult(_)))
                 .count();
         }
@@ -364,10 +376,12 @@ impl CacheService for MemoryCacheService {
 
         let mut result = stats.clone();
         result.total_entries = cache.len();
-        result.scrape_entries = cache.values()
+        result.scrape_entries = cache
+            .values()
             .filter(|e| matches!(e.data, CacheData::ScrapeResult(_)))
             .count();
-        result.crawl_entries = cache.values()
+        result.crawl_entries = cache
+            .values()
             .filter(|e| matches!(e.data, CacheData::CrawlResult(_)))
             .count();
 
@@ -472,7 +486,7 @@ mod tests {
         let cache_config = CacheConfig {
             enabled: true,
             directory: PathBuf::from("/tmp/cache"),
-            ttl: chrono::Duration::hours(1),
+            ttl: std::time::Duration::from_secs(3600),
             max_size_mb: 100,
         };
 
@@ -480,19 +494,30 @@ mod tests {
 
         // Test storing and retrieving scrape result
         let result = create_test_scrape_result();
-        cache.store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
-            .await.unwrap();
+        cache
+            .store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
+            .await
+            .unwrap();
 
-        let retrieved = cache.get_scrape_result("https://example.com", &OutputFormat::Markdown)
-            .await.unwrap();
+        let retrieved = cache
+            .get_scrape_result("https://example.com", &OutputFormat::Markdown)
+            .await
+            .unwrap();
         assert!(retrieved.is_some());
 
         // Test cache exists
-        assert!(cache.exists("https://example.com", &OutputFormat::Markdown).await.unwrap());
+        assert!(
+            cache
+                .exists("https://example.com", &OutputFormat::Markdown)
+                .await
+                .unwrap()
+        );
 
         // Test cache miss
-        let miss = cache.get_scrape_result("https://nonexistent.com", &OutputFormat::Markdown)
-            .await.unwrap();
+        let miss = cache
+            .get_scrape_result("https://nonexistent.com", &OutputFormat::Markdown)
+            .await
+            .unwrap();
         assert!(miss.is_none());
     }
 
@@ -501,7 +526,7 @@ mod tests {
         let cache_config = CacheConfig {
             enabled: true,
             directory: PathBuf::from("/tmp/cache"),
-            ttl: chrono::Duration::hours(1),
+            ttl: std::time::Duration::from_secs(3600),
             max_size_mb: 100,
         };
 
@@ -510,14 +535,20 @@ mod tests {
         let result = create_test_scrape_result();
 
         // Store and retrieve to generate statistics
-        cache.store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
-            .await.unwrap();
+        cache
+            .store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
+            .await
+            .unwrap();
 
-        cache.get_scrape_result("https://example.com", &OutputFormat::Markdown)
-            .await.unwrap();
+        cache
+            .get_scrape_result("https://example.com", &OutputFormat::Markdown)
+            .await
+            .unwrap();
 
-        cache.get_scrape_result("https://nonexistent.com", &OutputFormat::Markdown)
-            .await.unwrap();
+        cache
+            .get_scrape_result("https://nonexistent.com", &OutputFormat::Markdown)
+            .await
+            .unwrap();
 
         let stats = cache.get_statistics().await;
         assert_eq!(stats.total_entries, 1);
@@ -532,22 +563,26 @@ mod tests {
         let cache_config = CacheConfig {
             enabled: true,
             directory: PathBuf::from("/tmp/cache"),
-            ttl: chrono::Duration::milliseconds(1), // Very short TTL
+            ttl: std::time::Duration::from_millis(1), // Very short TTL
             max_size_mb: 100,
         };
 
         let cache = MemoryCacheService::new(cache_config);
 
         let result = create_test_scrape_result();
-        cache.store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
-            .await.unwrap();
+        cache
+            .store_scrape_result("https://example.com", &OutputFormat::Markdown, &result)
+            .await
+            .unwrap();
 
         // Wait for expiration
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
         // Should be expired now
-        let retrieved = cache.get_scrape_result("https://example.com", &OutputFormat::Markdown)
-            .await.unwrap();
+        let retrieved = cache
+            .get_scrape_result("https://example.com", &OutputFormat::Markdown)
+            .await
+            .unwrap();
         assert!(retrieved.is_none());
     }
 }

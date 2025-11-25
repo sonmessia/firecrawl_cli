@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
-use std::path::PathBuf;
 
-use crate::commands::{Command, CommandResult, CommandObserver, NoOpObserver};
-use crate::storage::ContentRepository;
+use crate::commands::{Command, CommandObserver, CommandResult, NoOpObserver};
 use crate::errors::{FirecrawlError, FirecrawlResult};
+use crate::storage::ContentRepository;
 
 /// Task queue for managing and executing commands concurrently
 pub struct TaskQueue {
@@ -58,7 +58,7 @@ impl TaskQueue {
     }
 
     /// Execute all commands in the queue
-    pub async fn execute_all<R: ContentRepository>(
+    pub async fn execute_all<R: ContentRepository + ?Sized>(
         &self,
         repository: &R,
         output_dir: &PathBuf,
@@ -79,10 +79,12 @@ impl TaskQueue {
                 let url = cmd.url().to_string();
 
                 let handle = tokio::spawn(async move {
-                    let _permit = semaphore.acquire().await
-                        .map_err(|_| FirecrawlError::ExecutionError(
-                            format!("Failed to acquire permit for task: {}", url)
-                        ))?;
+                    let _permit = semaphore.acquire().await.map_err(|_| {
+                        FirecrawlError::ExecutionError(format!(
+                            "Failed to acquire permit for task: {}",
+                            url
+                        ))
+                    })?;
 
                     // Clone the command for execution
                     // This is a bit of a hack due to trait object limitations
@@ -106,16 +108,15 @@ impl TaskQueue {
         // Wait for all tasks to complete
         for handle in handles {
             match handle.await {
-                Ok(result) => {
-                    match result {
-                        Ok(cmd_result) => results.push(cmd_result),
-                        Err(e) => return Err(e),
-                    }
-                }
+                Ok(result) => match result {
+                    Ok(cmd_result) => results.push(cmd_result),
+                    Err(e) => return Err(e),
+                },
                 Err(e) => {
-                    return Err(FirecrawlError::ExecutionError(
-                        format!("Task panicked: {}", e)
-                    ));
+                    return Err(FirecrawlError::ExecutionError(format!(
+                        "Task panicked: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -180,8 +181,8 @@ impl TaskQueueFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::ScrapeCommand;
     use crate::cli::OutputFormat;
+    use crate::commands::ScrapeCommand;
     use crate::storage::FileSystemRepository;
 
     #[tokio::test]
@@ -203,3 +204,4 @@ mod tests {
         assert_eq!(queue.pending_count().await, 1);
     }
 }
+

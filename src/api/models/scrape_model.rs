@@ -179,6 +179,124 @@ pub struct ScrapeRequest {
     pub zero_data_retention: Option<bool>, // Enable zero data retention mode
 }
 
+impl ScrapeRequest {
+    pub fn builder() -> ScrapeRequestBuilder {
+        ScrapeRequestBuilder::new()
+    }
+}
+
+// Builder pattern for ScrapeRequest
+pub struct ScrapeRequestBuilder {
+    request: ScrapeRequest,
+}
+
+impl ScrapeRequestBuilder {
+    pub fn new() -> Self {
+        Self {
+            request: ScrapeRequest::default(),
+        }
+    }
+
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.request.url = url.into();
+        self
+    }
+
+    pub fn formats(mut self, formats: Vec<OutputFormat>) -> Self {
+        self.request.formats = formats;
+        self
+    }
+
+    pub fn only_main_content(mut self, only_main_content: bool) -> Self {
+        self.request.only_main_content = Some(only_main_content);
+        self
+    }
+
+    pub fn include_tags(mut self, tags: Vec<String>) -> Self {
+        self.request.include_tags = Some(tags);
+        self
+    }
+
+    pub fn exclude_tags(mut self, tags: Vec<String>) -> Self {
+        self.request.exclude_tags = Some(tags);
+        self
+    }
+
+    pub fn remove_base64_images(mut self, remove: bool) -> Self {
+        self.request.remove_base64_images = Some(remove);
+        self
+    }
+
+    pub fn headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.request.headers = Some(headers);
+        self
+    }
+
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.request.timeout = Some(timeout);
+        self
+    }
+
+    pub fn wait_for(mut self, wait_for: u64) -> Self {
+        self.request.wait_for = Some(wait_for);
+        self
+    }
+
+    pub fn mobile(mut self, mobile: bool) -> Self {
+        self.request.mobile = Some(mobile);
+        self
+    }
+
+    pub fn block_ads(mut self, block: bool) -> Self {
+        self.request.block_ads = Some(block);
+        self
+    }
+
+    pub fn skip_tls_verification(mut self, skip: bool) -> Self {
+        self.request.skip_tls_verification = Some(skip);
+        self
+    }
+
+    pub fn proxy(mut self, proxy: ProxyType) -> Self {
+        self.request.proxy = Some(proxy);
+        self
+    }
+
+    pub fn location(mut self, location: Location) -> Self {
+        self.request.location = Some(location);
+        self
+    }
+
+    pub fn parsers(mut self, parsers: Vec<ParserType>) -> Self {
+        self.request.parsers = Some(parsers);
+        self
+    }
+
+    pub fn actions(mut self, actions: Vec<Action>) -> Self {
+        self.request.actions = Some(actions);
+        self
+    }
+
+    pub fn max_age(mut self, max_age: u64) -> Self {
+        self.request.max_age = Some(max_age);
+        self
+    }
+
+    pub fn store_in_cache(mut self, store: bool) -> Self {
+        self.request.store_in_cache = Some(store);
+        self
+    }
+
+    pub fn zero_data_retention(mut self, zero: bool) -> Self {
+        self.request.zero_data_retention = Some(zero);
+        self
+    }
+
+    pub fn build(self) -> ScrapeRequest {
+        self.request
+    }
+}
+
 // --- Response Structures ---
 
 // Generic API response wrapper for self-hosted Firecrawl instances
@@ -245,12 +363,6 @@ impl fmt::Display for ScrapeData {
         writeln!(f, "📄 Scrape Data:")?;
         if let Some(url) = &self.url {
             writeln!(f, "  URL: {}", url)?;
-        }
-        if let Some(title) = &self.metadata.title {
-            writeln!(f, "  Title: {}", title)?;
-        }
-        if let Some(language) = &self.metadata.language {
-            writeln!(f, "  Language: {}", language)?;
         }
 
         // Show available content formats
@@ -360,10 +472,6 @@ pub struct ChangeTracking {
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
-    pub title: Option<String>,      // Page title
-    pub language: Option<String>,   // Content language
-    pub source_url: Option<String>, // Source URL if different from requested URL
-
     // Additional metadata fields are captured here
     #[serde(flatten)]
     pub extra: HashMap<String, Value>, // Extra/unknown metadata fields

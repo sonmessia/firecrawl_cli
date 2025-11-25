@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use crate::api::models::{crawl_model::CrawlResponse, scrape_model::ScrapeResponse};
 use crate::cli::OutputFormat;
-use crate::storage::ContentRepository;
-use crate::api::models::{scrape_model::ScrapeResponse, crawl_model::CrawlResponse};
 use crate::errors::{FirecrawlError, FirecrawlResult};
+use crate::storage::ContentRepository;
 
 /// Service for file operations that wraps the repository pattern
 pub struct FileService {
@@ -38,11 +38,15 @@ impl FileService {
         output_dir: &PathBuf,
     ) -> FirecrawlResult<PathBuf> {
         // Ensure output directory exists
-        self.repository.ensure_directory(output_dir).await
+        self.repository
+            .ensure_directory(output_dir)
+            .await
             .map_err(FirecrawlError::StorageError)?;
 
         // Save the result
-        self.repository.save_scrape_result(result, url, format, output_dir).await
+        self.repository
+            .save_scrape_result(result, url, format, output_dir)
+            .await
             .map_err(FirecrawlError::StorageError)
     }
 
@@ -55,11 +59,15 @@ impl FileService {
         output_dir: &PathBuf,
     ) -> FirecrawlResult<Vec<PathBuf>> {
         // Ensure output directory exists
-        self.repository.ensure_directory(output_dir).await
+        self.repository
+            .ensure_directory(output_dir)
+            .await
             .map_err(FirecrawlError::StorageError)?;
 
         // Save the results
-        self.repository.save_crawl_results(results, url, format, output_dir).await
+        self.repository
+            .save_crawl_results(results, url, format, output_dir)
+            .await
             .map_err(FirecrawlError::StorageError)
     }
 
@@ -75,14 +83,16 @@ impl FileService {
 
     /// Ensure a directory exists
     pub async fn ensure_directory(&self, path: &PathBuf) -> FirecrawlResult<()> {
-        self.repository.ensure_directory(path).await
+        self.repository
+            .ensure_directory(path)
+            .await
             .map_err(FirecrawlError::StorageError)
     }
 
     /// Create subdirectory within output directory
     pub async fn create_subdirectory(
         &self,
-        base_dir: &PathBuf,
+        base_dir: &Path,
         subdirectory: &str,
     ) -> FirecrawlResult<PathBuf> {
         let full_path = base_dir.join(subdirectory);
@@ -91,7 +101,7 @@ impl FileService {
     }
 
     /// Create date-based subdirectory
-    pub async fn create_date_subdirectory(&self, base_dir: &PathBuf) -> FirecrawlResult<PathBuf> {
+    pub async fn create_date_subdirectory(&self, base_dir: &Path) -> FirecrawlResult<PathBuf> {
         let date_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
         self.create_subdirectory(base_dir, &date_str).await
     }
@@ -112,7 +122,7 @@ impl FileService {
         &self,
         url: &str,
         format: OutputFormat,
-        output_dir: &PathBuf,
+        output_dir: &Path,
     ) -> FirecrawlResult<String> {
         let mut filename = self.generate_filename(url, format.clone());
         let mut counter = 1;
@@ -124,9 +134,13 @@ impl FileService {
                 OutputFormat::Html => "html",
                 OutputFormat::Json => "json",
                 OutputFormat::Raw => "txt",
+                OutputFormat::RawHtml => "html",
+                OutputFormat::Links => "json",
+                OutputFormat::Images => "json",
             };
 
-            let base_name = filename.strip_suffix(&format!(".{}", extension))
+            let base_name = filename
+                .strip_suffix(&format!(".{}", extension))
                 .unwrap_or(&filename);
 
             filename = format!("{}-{}.{}", base_name, counter, extension);
@@ -144,48 +158,53 @@ impl FileService {
         format: OutputFormat,
         output_dir: &PathBuf,
     ) -> FirecrawlResult<PathBuf> {
-        let filename = self.generate_unique_filename(url, format.clone(), output_dir).await?;
+        let filename = self
+            .generate_unique_filename(url, format.clone(), output_dir)
+            .await?;
         let file_path = output_dir.join(filename);
 
         // Use the repository to save with custom filename logic
-        self.save_scrape_result(result, url, format, output_dir).await
+        self.save_scrape_result(result, url, format, output_dir)
+            .await
     }
 
     /// Create a backup of an existing file
     pub async fn backup_file(&self, file_path: &PathBuf) -> FirecrawlResult<PathBuf> {
         if !self.file_exists(file_path).await {
             return Err(FirecrawlError::StorageError(
-                crate::storage::StorageError::FileNotFound(file_path.to_string_lossy().to_string())
+                crate::storage::StorageError::FileNotFound(file_path.to_string_lossy().to_string()),
             ));
         }
 
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-        let original_name = file_path.file_stem()
+        let original_name = file_path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("backup");
-        let extension = file_path.extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let extension = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
         let backup_name = format!("{}_backup{}.{}", original_name, timestamp, extension);
-        let backup_path = file_path.parent()
+        let backup_path = file_path
+            .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
             .join(backup_name);
 
-        tokio::fs::copy(file_path, &backup_path).await
-            .map_err(|e| FirecrawlError::StorageError(
-                crate::storage::StorageError::FileSystem(e)
-            ))?;
+        tokio::fs::copy(file_path, &backup_path)
+            .await
+            .map_err(|e| {
+                FirecrawlError::StorageError(crate::storage::StorageError::FileSystem(
+                    e.to_string(),
+                ))
+            })?;
 
         Ok(backup_path)
     }
 
     /// Get file size in bytes
     pub async fn get_file_size(&self, file_path: &PathBuf) -> FirecrawlResult<u64> {
-        let metadata = tokio::fs::metadata(file_path).await
-            .map_err(|e| FirecrawlError::StorageError(
-                crate::storage::StorageError::FileSystem(e)
-            ))?;
+        let metadata = tokio::fs::metadata(file_path).await.map_err(|e| {
+            FirecrawlError::StorageError(crate::storage::StorageError::FileSystem(e.to_string()))
+        })?;
         Ok(metadata.len())
     }
 
@@ -199,10 +218,9 @@ impl FileService {
             return Ok(Vec::new());
         }
 
-        let mut entries = tokio::fs::read_dir(directory).await
-            .map_err(|e| FirecrawlError::StorageError(
-                crate::storage::StorageError::FileSystem(e)
-            ))?;
+        let mut entries = tokio::fs::read_dir(directory).await.map_err(|e| {
+            FirecrawlError::StorageError(crate::storage::StorageError::FileSystem(e.to_string()))
+        })?;
 
         let mut removed_files = Vec::new();
         let cutoff_time = chrono::Utc::now() - older_than;
@@ -269,7 +287,8 @@ mod tests {
         assert!(subdir.exists());
 
         // Test filename generation
-        let filename = service.generate_filename("https://example.com/test", OutputFormat::Markdown);
+        let filename =
+            service.generate_filename("https://example.com/test", OutputFormat::Markdown);
         assert_eq!(filename, "https-example-com-test.md");
     }
 
@@ -279,11 +298,14 @@ mod tests {
         let service = FileServiceFactory::create_filesystem_service(temp_dir.path().to_path_buf());
 
         // First call should generate regular filename
-        let filename1 = service.generate_unique_filename(
-            "https://example.com",
-            OutputFormat::Markdown,
-            temp_dir.path()
-        ).await.unwrap();
+        let filename1 = service
+            .generate_unique_filename(
+                "https://example.com",
+                OutputFormat::Markdown,
+                temp_dir.path(),
+            )
+            .await
+            .unwrap();
         assert_eq!(filename1, "https-example-com.md");
 
         // Create a file with that name
@@ -291,11 +313,14 @@ mod tests {
         tokio::fs::write(&file_path, "test content").await.unwrap();
 
         // Second call should generate a unique filename
-        let filename2 = service.generate_unique_filename(
-            "https://example.com",
-            OutputFormat::Markdown,
-            temp_dir.path()
-        ).await.unwrap();
+        let filename2 = service
+            .generate_unique_filename(
+                "https://example.com",
+                OutputFormat::Markdown,
+                temp_dir.path(),
+            )
+            .await
+            .unwrap();
         assert!(filename2 != filename1);
         assert!(filename2.starts_with("https-example-com-1"));
     }
@@ -305,9 +330,13 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let service = FileServiceFactory::create_filesystem_service(temp_dir.path().to_path_buf());
 
-        let date_dir = service.create_date_subdirectory(temp_dir.path()).await.unwrap();
+        let date_dir = service
+            .create_date_subdirectory(temp_dir.path())
+            .await
+            .unwrap();
         let date_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
         assert_eq!(date_dir.file_name().unwrap().to_str().unwrap(), date_str);
         assert!(date_dir.exists());
     }
 }
+

@@ -33,32 +33,36 @@ impl CrawlCommand {
     }
 
     /// Execute the crawl operation with the provided client
-    async fn execute_crawl(&self, client: &FirecrawlClient) -> FirecrawlResult<Vec<CrawlResponse>> {
+    async fn execute_crawl(&self, client: &FirecrawlClient) -> FirecrawlResult<Vec<crate::api::models::crawl_model::CrawlResponse>> {
         let request = if let Some(options) = &self.options {
             CrawlRequest::builder()
                 .url(self.url.clone())
                 .limit(options.limit)
                 .only_main_content(options.only_main_content)
                 .build()
-                .map_err(|e| FirecrawlError::ValidationError(e))?
+                .map_err(|e| FirecrawlError::ValidationError(e.to_string()))?
         } else {
             CrawlRequest::builder()
                 .url(self.url.clone())
                 .build()
-                .map_err(|e| FirecrawlError::ValidationError(e))?
+                .map_err(|e| FirecrawlError::ValidationError(e.to_string()))?
         };
 
         let crawl_result = client
             .crawl_url(request)
             .await
-            .map_err(|e| FirecrawlError::ApiError(e.into()))?;
+            .map_err(|e| {
+                FirecrawlError::ApiError(crate::errors::ApiError::Other(e.to_string()))
+            })?;
+
+        let job_id = crawl_result.job_id;
 
         // Wait for crawl to complete and get results
         let monitor_service = client as &dyn CrawlMonitorService;
         monitor_service
             .monitor_crawl_job(
-                &crawl_result.job_id,
-                Box::new(|progress| {
+                &job_id,
+                Box::new(|_progress| {
                     // Progress callback could be used by observer
                     // For now, we'll just ignore progress updates
                 }),

@@ -2,8 +2,8 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::config::AppConfig;
 use crate::cli::OutputFormat;
+use crate::config::AppConfig;
 use crate::errors::FirecrawlResult;
 
 /// Environment variable names
@@ -37,22 +37,22 @@ pub fn load_from_env() -> FirecrawlResult<AppConfig> {
         config.api.api_key = Some(key);
     }
 
-    if let Ok(timeout_str) = env::var(env_vars::TIMEOUT) {
-        if let Ok(secs) = timeout_str.parse::<u64>() {
-            config.api.timeout = Duration::from_secs(secs);
-        }
+    if let Ok(timeout_str) = env::var(env_vars::TIMEOUT)
+        && let Ok(secs) = timeout_str.parse::<u64>()
+    {
+        config.api.timeout = Duration::from_secs(secs);
     }
 
-    if let Ok(retries_str) = env::var(env_vars::MAX_RETRIES) {
-        if let Ok(retries) = retries_str.parse::<u32>() {
-            config.api.max_retries = retries;
-        }
+    if let Ok(retries_str) = env::var(env_vars::MAX_RETRIES)
+        && let Ok(retries) = retries_str.parse::<u32>()
+    {
+        config.api.max_retries = retries;
     }
 
-    if let Ok(delay_str) = env::var(env_vars::RETRY_DELAY) {
-        if let Ok(millis) = delay_str.parse::<u64>() {
-            config.api.retry_delay = Duration::from_millis(millis);
-        }
+    if let Ok(delay_str) = env::var(env_vars::RETRY_DELAY)
+        && let Ok(millis) = delay_str.parse::<u64>()
+    {
+        config.api.retry_delay = Duration::from_millis(millis);
     }
 
     if let Ok(user_agent) = env::var(env_vars::USER_AGENT) {
@@ -73,17 +73,17 @@ pub fn load_from_env() -> FirecrawlResult<AppConfig> {
         config.output.default_directory = PathBuf::from(output_dir);
     }
 
-    if let Ok(format_str) = env::var(env_vars::DEFAULT_FORMAT) {
-        if let Ok(format) = parse_output_format(&format_str) {
-            config.output.default_format = format;
-        }
+    if let Ok(format_str) = env::var(env_vars::DEFAULT_FORMAT)
+        && let Ok(format) = parse_output_format(&format_str)
+    {
+        config.output.default_format = format;
     }
 
     // Execution configuration
-    if let Ok(max_tasks_str) = env::var(env_vars::MAX_CONCURRENT_TASKS) {
-        if let Ok(max_tasks) = max_tasks_str.parse::<usize>() {
-            config.execution.max_concurrent_tasks = max_tasks;
-        }
+    if let Ok(max_tasks_str) = env::var(env_vars::MAX_CONCURRENT_TASKS)
+        && let Ok(max_tasks) = max_tasks_str.parse::<usize>()
+    {
+        config.execution.max_concurrent_tasks = max_tasks;
     }
 
     if let Ok(verbose_str) = env::var(env_vars::VERBOSE_LOGGING) {
@@ -223,10 +223,12 @@ mod tests {
     #[test]
     fn test_load_from_env() {
         // Set some test environment variables
-        env::set_var(env_vars::API_KEY, "test-key");
-        env::set_var(env_vars::TIMEOUT, "60");
-        env::set_var(env_vars::MAX_CONCURRENT_TASKS, "8");
-        env::set_var(env_vars::VERBOSE_LOGGING, "true");
+        unsafe {
+            env::set_var(env_vars::API_KEY, "test-key");
+            env::set_var(env_vars::TIMEOUT, "60");
+            env::set_var(env_vars::MAX_CONCURRENT_TASKS, "8");
+            env::set_var(env_vars::VERBOSE_LOGGING, "true");
+        }
 
         let config = load_from_env().unwrap();
 
@@ -236,9 +238,12 @@ mod tests {
         assert!(config.execution.verbose_logging);
 
         // Clean up
-        env::remove_var(env_vars::API_KEY);
-        env::remove_var(env_vars::TIMEOUT);
-        env::remove_var(env_vars::MAX_CONCURRENT_TASKS);
-        env::remove_var(env_vars::VERBOSE_LOGGING);
+        unsafe {
+            env::remove_var(env_vars::API_KEY);
+            env::remove_var(env_vars::TIMEOUT);
+            env::remove_var(env_vars::MAX_CONCURRENT_TASKS);
+            env::remove_var(env_vars::VERBOSE_LOGGING);
+        }
     }
 }
+

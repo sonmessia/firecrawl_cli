@@ -1,8 +1,8 @@
-use thiserror::Error;
 use crate::storage::StorageError;
+use thiserror::Error;
 
 /// Domain-specific error types for the Firecrawl CLI
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum FirecrawlError {
     /// API-related errors
     #[error("API error: {0}")]
@@ -46,10 +46,10 @@ pub enum FirecrawlError {
 }
 
 /// API-specific error types
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum ApiError {
     #[error("HTTP request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
+    RequestError(String),
 
     #[error("Invalid response format: {0}")]
     InvalidResponse(String),
@@ -69,12 +69,27 @@ pub enum ApiError {
     #[error("Invalid API key format")]
     InvalidApiKey,
 
+    #[error("Request timeout: {0}")]
+    Timeout(String),
+
     #[error("Other API error: {0}")]
-    Other(#[from] anyhow::Error),
+    Other(String),
+}
+
+impl From<reqwest::Error> for ApiError {
+    fn from(err: reqwest::Error) -> Self {
+        ApiError::RequestError(err.to_string())
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        ApiError::Other(err.to_string())
+    }
 }
 
 /// Network-specific error types
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum NetworkError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
@@ -181,7 +196,8 @@ impl ErrorContext {
     }
 
     pub fn with_info(mut self, key: &str, value: &str) -> Self {
-        self.additional_info.insert(key.to_string(), value.to_string());
+        self.additional_info
+            .insert(key.to_string(), value.to_string());
         self
     }
 }
@@ -204,3 +220,4 @@ impl ContextualError {
         Self::new(error, ErrorContext::new(operation, component))
     }
 }
+

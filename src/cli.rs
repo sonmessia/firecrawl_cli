@@ -49,7 +49,7 @@ pub enum Commands {
 }
 
 /// Output format options
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {
     #[serde(rename = "markdown")]
     Markdown,

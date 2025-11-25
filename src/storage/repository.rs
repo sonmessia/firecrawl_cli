@@ -71,6 +71,8 @@ impl ContentRepository for FileSystemRepository {
             OutputFormat::Json => Box::new(JsonSaver),
             OutputFormat::Raw => Box::new(RawSaver),
             OutputFormat::RawHtml => Box::new(HtmlSaver), // Use HtmlSaver for RawHtml
+            OutputFormat::Links => Box::new(JsonSaver), // Use JsonSaver for Links
+            OutputFormat::Images => Box::new(JsonSaver), // Use JsonSaver for Images
         };
 
         saver.save_scrape_result(result, url, output_dir).await
@@ -92,6 +94,8 @@ impl ContentRepository for FileSystemRepository {
             OutputFormat::Json => Box::new(JsonSaver),
             OutputFormat::Raw => Box::new(RawSaver),
             OutputFormat::RawHtml => Box::new(HtmlSaver), // Use HtmlSaver for RawHtml
+            OutputFormat::Links => Box::new(JsonSaver), // Use JsonSaver for Links
+            OutputFormat::Images => Box::new(JsonSaver), // Use JsonSaver for Images
         };
 
         saver.save_crawl_results(results, url, output_dir).await
@@ -118,6 +122,8 @@ impl ContentRepository for FileSystemRepository {
             OutputFormat::Json => "json",
             OutputFormat::Raw => "txt",
             OutputFormat::RawHtml => "html",
+            OutputFormat::Links => "json",
+            OutputFormat::Images => "json",
         };
 
         format!("{}.{}", slug, extension)

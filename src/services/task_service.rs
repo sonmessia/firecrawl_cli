@@ -126,15 +126,16 @@ impl TaskService {
 
         // Add tasks to queue
         for task in tasks {
-            let command: Box<dyn Command<Result = CommandResult> + Send + Sync> = match task {
+            match task {
                 TaskDefinition::Scrape { url, options, format } => {
-                    Box::new(ScrapeCommand::new(url, options, format))
+                    let command = ScrapeCommand::new(url, options, format);
+                    queue.enqueue(command).await;
                 }
                 TaskDefinition::Crawl { url, options, format } => {
-                    Box::new(CrawlCommand::new(url, options, format))
+                    let command = CrawlCommand::new(url, options, format);
+                    queue.enqueue(command).await;
                 }
             };
-            queue.enqueue(command).await;
         }
 
         // Execute all tasks

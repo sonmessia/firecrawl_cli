@@ -25,7 +25,11 @@ pub struct CrawlRequest {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CrawlStartResponse {
+    #[serde(alias = "id")] // Handle both "jobId" and "id" field names
     pub job_id: String, // Unique identifier for the crawl job
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>, // Optional URL field in the response
 }
 
 // Crawl response structure for individual crawled pages
@@ -43,12 +47,9 @@ pub struct CrawlResponse {
 // Metadata for crawl responses
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CrawlMetadata {
-    pub title: Option<String>,
-    pub language: Option<String>,
     pub keywords: Option<Vec<String>>,
     pub robots: Option<String>,
     pub og_image: Option<String>,
-    pub page_title: Option<String>,
     pub author: Option<String>,
     pub published_date: Option<chrono::DateTime<chrono::Utc>>,
     pub modified_date: Option<chrono::DateTime<chrono::Utc>>,

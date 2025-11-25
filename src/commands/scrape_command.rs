@@ -32,26 +32,27 @@ impl ScrapeCommand {
     }
 
     /// Execute the scrape operation with the provided client
-    async fn execute_scrape(&self, client: &FirecrawlClient) -> FirecrawlResult<ScrapeResponse> {
-        let request = if let Some(options) = &self.options {
-            ScrapeRequest::builder()
-                .url(self.url.clone())
-                .formats(Some(vec![self.output_format.clone()]))
-                .only_main_content(options.only_main_content)
-                .include_tags(options.include_tags.clone())
-                .exclude_tags(options.exclude_tags.clone())
-                .build()
-                .map_err(|e| FirecrawlError::ValidationError(e.to_string()))?
-        } else {
-            ScrapeRequest::builder()
-                .url(self.url.clone())
-                .formats(Some(vec![self.output_format.clone()]))
-                .build()
-                .map_err(|e| FirecrawlError::ValidationError(e.to_string()))?
-        };
+    async fn execute_scrape(&self, client: &FirecrawlClient) -> FirecrawlResult<crate::api::models::scrape_model::ScrapeData> {
+        let mut builder = ScrapeRequest::builder()
+            .url(self.url.clone())
+            .formats(vec![self.output_format.clone()]);
 
-        client.scrape_url(request).await
-            .map_err(FirecrawlError::ApiError)
+        if let Some(options) = &self.options {
+            if let Some(only_main) = options.only_main_content {
+                builder = builder.only_main_content(only_main);
+            }
+            if let Some(ref include_tags) = options.include_tags {
+                builder = builder.include_tags(include_tags.clone());
+            }
+            if let Some(ref exclude_tags) = options.exclude_tags {
+                builder = builder.exclude_tags(exclude_tags.clone());
+            }
+        }
+
+        let request = builder.build();
+
+        client.scrape_with_request(request).await
+            .map_err(|e| FirecrawlError::ApiError(crate::errors::ApiError::Other(e.to_string())))
     }
 }
 
@@ -74,15 +75,22 @@ impl Command for ScrapeCommand {
         observer.on_command_started(self);
 
         // Execute scrape
-        let scrape_result = self.execute_scrape(&client).await
+        let scrape_data = self.execute_scrape(&client).await
             .map_err(|e| {
                 observer.on_command_failed(self, &e);
                 e
             })?;
 
+        // Wrap ScrapeData in ScrapeResponse
+        let scrape_response = ScrapeResponse {
+            success: true,
+            data: Some(scrape_data),
+            error: None,
+        };
+
         // Save result
         let file_path = repository
-            .save_scrape_result(&scrape_result, &self.url, self.output_format, output_dir)
+            .save_scrape_result(&scrape_response, &self.url, self.output_format, output_dir)
             .await
             .map_err(FirecrawlError::StorageError)?;
 

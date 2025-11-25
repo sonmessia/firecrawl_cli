@@ -1,14 +1,14 @@
 use async_trait::async_trait;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
-use crate::api::services::client::FirecrawlClient;
 use super::CrawlProgress;
 use crate::api::models::{
-    scrape_model::{ScrapeRequest, ScrapeResponse, ScrapeOptions},
-    crawl_model::{CrawlRequest, CrawlResponse, CrawlOptions},
+    crawl_model::{CrawlOptions, CrawlRequest, CrawlResponse},
+    scrape_model::{ScrapeOptions, ScrapeRequest, ScrapeResponse},
 };
-use crate::config::{AppConfig, ApiConfig};
+use crate::api::services::client::FirecrawlClient;
+use crate::config::{ApiConfig, AppConfig};
 use crate::errors::{FirecrawlError, FirecrawlResult};
 
 /// Trait for API operations abstraction
@@ -34,7 +34,9 @@ pub trait CrawlMonitorService {
         &'a self,
         job_id: &'a str,
         progress_callback: Box<dyn FnMut(CrawlProgress) + Send + 'a>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>>;
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>,
+    >;
 }
 
 /// API status information
@@ -83,13 +85,10 @@ impl ApiService for DefaultApiService {
     async fn scrape_url(&self, request: ScrapeRequest) -> FirecrawlResult<ScrapeResponse> {
         let start_time = std::time::Instant::now();
 
-        let scrape_data = self.client
-            .scrape_url(&request.url)
-            .await
-            .map_err(|e| {
-                // Add retry logic here if needed
-                FirecrawlError::ApiError(crate::errors::ApiError::Other(e))
-            })?;
+        let scrape_data = self.client.scrape_url(&request.url).await.map_err(|e| {
+            // Add retry logic here if needed
+            FirecrawlError::ApiError(crate::errors::ApiError::Other(e.to_string()))
+        })?;
 
         // Convert ScrapeData to ScrapeResponse
         let result = ScrapeResponse {
@@ -107,10 +106,10 @@ impl ApiService for DefaultApiService {
     async fn crawl_url(&self, request: CrawlRequest) -> FirecrawlResult<CrawlResponse> {
         let start_time = std::time::Instant::now();
 
-        let start_response = self.client
-            .crawl_url(request)
-            .await
-            .map_err(|e| FirecrawlError::ApiError(crate::errors::ApiError::Other(e)))?;
+        let start_response =
+            self.client.crawl_url(request).await.map_err(|e| {
+                FirecrawlError::ApiError(crate::errors::ApiError::Other(e.to_string()))
+            })?;
 
         // For now, we'll return a basic CrawlResponse indicating the crawl started
         // In a real implementation, you might want to monitor the crawl and return results
@@ -122,13 +121,9 @@ impl ApiService for DefaultApiService {
             markdown: None,
             html: None,
             metadata: crate::api::models::crawl_model::CrawlMetadata {
-                title: None,
-                description: None,
-                language: None,
                 keywords: None,
                 robots: None,
                 og_image: None,
-                page_title: None,
                 author: None,
                 published_date: None,
                 modified_date: None,
@@ -141,7 +136,6 @@ impl ApiService for DefaultApiService {
         Ok(result)
     }
 
-  
     async fn get_status(&self) -> FirecrawlResult<ApiStatus> {
         let start_time = std::time::Instant::now();
 
@@ -170,15 +164,22 @@ impl CrawlMonitorService for DefaultApiService {
         &'a self,
         job_id: &'a str,
         progress_callback: Box<dyn FnMut(CrawlProgress) + Send + 'a>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>,
+    > {
         Box::pin(async move {
             let start_time = std::time::Instant::now();
 
-            let results = self.client
+            let results = self
+                .client
                 .monitor_crawl_job(job_id, progress_callback)
                 .await?;
 
-            log::debug!("Crawl job {} completed in {:?}", job_id, start_time.elapsed());
+            log::debug!(
+                "Crawl job {} completed in {:?}",
+                job_id,
+                start_time.elapsed()
+            );
 
             Ok(results)
         })
@@ -190,7 +191,9 @@ pub struct ApiServiceFactory;
 
 impl ApiServiceFactory {
     /// Create API service from configuration
-    pub fn create_from_config(config: &AppConfig) -> FirecrawlResult<Arc<dyn ApiService + Send + Sync>> {
+    pub fn create_from_config(
+        config: &AppConfig,
+    ) -> FirecrawlResult<Arc<dyn ApiService + Send + Sync>> {
         let service = DefaultApiService::from_app_config(config)?;
         Ok(Arc::new(service))
     }
@@ -227,10 +230,10 @@ impl CrawlMonitorService for MockApiService {
         &'a self,
         _job_id: &'a str,
         mut _progress_callback: Box<dyn FnMut(CrawlProgress) + Send + 'a>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>> {
-        Box::pin(async move {
-            Ok(vec![])
-        })
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>,
+    > {
+        Box::pin(async move { Ok(vec![]) })
     }
 }
 
@@ -254,13 +257,9 @@ impl ApiService for MockApiService {
             markdown: Some("# Mock Content".to_string()),
             html: Some("<h1>Mock Content</h1>".to_string()),
             metadata: crate::api::models::crawl_model::CrawlMetadata {
-                title: Some("Mock Title".to_string()),
-                description: Some("Mock Description".to_string()),
-                language: Some("en".to_string()),
                 keywords: Some(vec!["mock".to_string()]),
                 robots: Some("all".to_string()),
                 og_image: Some("https://example.com/image.jpg".to_string()),
-                page_title: Some("Mock Page Title".to_string()),
                 author: Some("Mock Author".to_string()),
                 published_date: None,
                 modified_date: None,
@@ -273,10 +272,10 @@ impl ApiService for MockApiService {
         &'a self,
         _job_id: &'a str,
         mut _progress_callback: Box<dyn FnMut(CrawlProgress) + Send + 'a>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>> {
-        Box::pin(async move {
-            Ok(vec![])
-        })
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = FirecrawlResult<Vec<CrawlResponse>>> + Send + 'a>,
+    > {
+        Box::pin(async move { Ok(vec![]) })
     }
 
     async fn get_status(&self) -> FirecrawlResult<ApiStatus> {

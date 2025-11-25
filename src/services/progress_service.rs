@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::commands::CommandResult;
@@ -60,7 +60,9 @@ impl DefaultProgressService {
     /// Create a new DefaultProgressService
     pub fn new() -> Self {
         Self {
-            statistics: Arc::new(RwLock::new(crate::services::task_service::TaskStatistics::default())),
+            statistics: Arc::new(RwLock::new(
+                crate::services::task_service::TaskStatistics::default(),
+            )),
             observers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -111,7 +113,9 @@ impl ProgressService for DefaultProgressService {
             let task_type = task_type.to_string();
             let observer_clone = Arc::clone(observer);
             tokio::spawn(async move {
-                observer_clone.on_task_progress(&url, &task_type, progress).await;
+                observer_clone
+                    .on_task_progress(&url, &task_type, progress)
+                    .await;
             });
         }
     }
@@ -147,10 +151,12 @@ impl ProgressService for DefaultProgressService {
         for observer in observers.values() {
             let url = url.to_string();
             let task_type = task_type.to_string();
-            let error = error.clone();
+            let error_clone = error.clone();
             let observer_clone = Arc::clone(observer);
             tokio::spawn(async move {
-                observer_clone.on_task_failed(&url, &task_type, &error).await;
+                observer_clone
+                    .on_task_failed(&url, &task_type, &error_clone)
+                    .await;
             });
         }
     }
@@ -178,7 +184,10 @@ pub struct ConsoleProgressObserver {
 impl ConsoleProgressObserver {
     pub fn new() -> Self {
         Self {
-            id: format!("console-{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+            id: format!(
+                "console-{}",
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            ),
         }
     }
 }
@@ -221,7 +230,10 @@ pub struct LoggingProgressObserver {
 impl LoggingProgressObserver {
     pub fn new() -> Self {
         Self {
-            id: format!("logging-{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+            id: format!(
+                "logging-{}",
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            ),
         }
     }
 }
@@ -239,7 +251,12 @@ impl ProgressObserver for LoggingProgressObserver {
     }
 
     async fn on_task_progress(&self, url: &str, task_type: &str, progress: f32) {
-        log::debug!("Progress for {} {}: {:.1}%", task_type, url, progress * 100.0);
+        log::debug!(
+            "Progress for {} {}: {:.1}%",
+            task_type,
+            url,
+            progress * 100.0
+        );
     }
 
     async fn on_task_completed(&self, url: &str, task_type: &str) {
@@ -247,7 +264,12 @@ impl ProgressObserver for LoggingProgressObserver {
     }
 
     async fn on_task_failed(&self, url: &str, task_type: &str, error: &FirecrawlError) {
-        log::error!("Failed {} task for URL: {} - Error: {}", task_type, url, error);
+        log::error!(
+            "Failed {} task for URL: {} - Error: {}",
+            task_type,
+            url,
+            error
+        );
     }
 
     fn observer_id(&self) -> &str {
@@ -350,9 +372,15 @@ mod tests {
 
         service.register_observer(Arc::clone(&observer)).await;
 
-        service.notify_task_started("https://example.com", "scrape").await;
-        service.notify_task_progress("https://example.com", "scrape", 0.5).await;
-        service.notify_task_completed("https://example.com", "scrape").await;
+        service
+            .notify_task_started("https://example.com", "scrape")
+            .await;
+        service
+            .notify_task_progress("https://example.com", "scrape", 0.5)
+            .await;
+        service
+            .notify_task_completed("https://example.com", "scrape")
+            .await;
 
         // Give time for async tasks to complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -368,11 +396,22 @@ mod tests {
     async fn test_statistics() {
         let service = DefaultProgressService::new();
 
-        service.notify_task_started("https://example1.com", "scrape").await;
-        service.notify_task_started("https://example2.com", "crawl").await;
-        service.notify_task_completed("https://example1.com", "scrape").await;
-        service.notify_task_failed("https://example2.com", "crawl",
-            &FirecrawlError::ValidationError("test error".to_string())).await;
+        service
+            .notify_task_started("https://example1.com", "scrape")
+            .await;
+        service
+            .notify_task_started("https://example2.com", "crawl")
+            .await;
+        service
+            .notify_task_completed("https://example1.com", "scrape")
+            .await;
+        service
+            .notify_task_failed(
+                "https://example2.com",
+                "crawl",
+                &FirecrawlError::ValidationError("test error".to_string()),
+            )
+            .await;
 
         let stats = service.get_statistics().await;
         assert_eq!(stats.total_tasks, 2);

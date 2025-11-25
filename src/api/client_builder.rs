@@ -511,12 +511,9 @@ impl EnhancedFirecrawlClient {
                         markdown: scrape_data.markdown.clone(),
                         html: scrape_data.html.clone().or(scrape_data.raw_html.clone()),
                         metadata: crate::api::models::crawl_model::CrawlMetadata {
-                            title: scrape_data.metadata.title.clone(),
-                            language: scrape_data.metadata.language.clone(),
                             keywords: None,
                             robots: None,
                             og_image: None,
-                            page_title: scrape_data.metadata.title.clone(),
                             author: None,
                             published_date: None,
                             modified_date: None,

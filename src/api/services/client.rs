@@ -79,12 +79,61 @@ impl FirecrawlClient {
         }
 
         // Parse and return the response
-        let api_response: ApiResponse<ScrapeData> = response.json().await?;
+        let text = response.text().await?;
 
-        if api_response.success {
-            Ok(api_response.data)
+        // Try to parse as wrapped response
+        if let Ok(api_response) = serde_json::from_str::<ApiResponse<ScrapeData>>(&text) {
+            if api_response.success {
+                Ok(api_response.data)
+            } else {
+                Err(anyhow!("API request failed"))
+            }
         } else {
-            Err(anyhow!("API request failed"))
+            // Fallback: try to parse as direct ScrapeData
+            let direct_response: ScrapeData = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("Failed to parse response: {} - Response: {}", e, text))?;
+            Ok(direct_response)
+        }
+    }
+
+    // Scrape a single URL with a custom request and return the extracted content
+    pub async fn scrape_with_request(&self, request: ScrapeRequest) -> Result<ScrapeData> {
+        // Send scrape request to the API
+        let response = self
+            .add_auth_headers(
+                self.client
+                    .post(format!("{}/scrape", self.base_url))
+                    .json(&request),
+            )
+            .send()
+            .await?;
+
+        // Handle error responses
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "Scrape request failed: {} - {}",
+                status,
+                error_text
+            ));
+        }
+
+        // Parse and return the response
+        let text = response.text().await?;
+
+        // Try to parse as wrapped response
+        if let Ok(api_response) = serde_json::from_str::<ApiResponse<ScrapeData>>(&text) {
+            if api_response.success {
+                Ok(api_response.data)
+            } else {
+                Err(anyhow!("API request failed"))
+            }
+        } else {
+            // Fallback: try to parse as direct ScrapeData
+            let direct_response: ScrapeData = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("Failed to parse response: {} - Response: {}", e, text))?;
+            Ok(direct_response)
         }
     }
 
@@ -115,8 +164,17 @@ impl FirecrawlClient {
         }
 
         // Extract job ID from the response
-        let start_response: CrawlStartResponse = response.json().await?;
-        let job_id = start_response.job_id;
+        let text = response.text().await?;
+        let job_id = if let Ok(api_response) =
+            serde_json::from_str::<ApiResponse<CrawlStartResponse>>(&text)
+        {
+            api_response.data.job_id
+        } else {
+            // Fallback: try to parse as direct CrawlStartResponse
+            let direct_response: CrawlStartResponse = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("Failed to parse response: {} - Response: {}", e, text))?;
+            direct_response.job_id
+        };
 
         // Poll for crawl completion
         loop {
@@ -205,8 +263,18 @@ impl FirecrawlClient {
         }
 
         // Extract job ID from the response
-        let start_response: CrawlStartResponse = response.json().await?;
-        Ok(start_response)
+        // Try to parse as ApiResponse first
+        let text = response.text().await?;
+
+        // Try to parse as wrapped response
+        if let Ok(api_response) = serde_json::from_str::<ApiResponse<CrawlStartResponse>>(&text) {
+            Ok(api_response.data)
+        } else {
+            // Fallback: try to parse as direct CrawlStartResponse
+            let direct_response: CrawlStartResponse = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("Failed to parse response: {} - Response: {}", e, text))?;
+            Ok(direct_response)
+        }
     }
 }
 
@@ -228,7 +296,9 @@ impl CrawlMonitorService for FirecrawlClient {
 
             loop {
                 let state = self.check_crawl_status(job_id).await.map_err(|e| {
-                    crate::errors::FirecrawlError::ApiError(crate::errors::ApiError::Other(e))
+                    crate::errors::FirecrawlError::ApiError(crate::errors::ApiError::Other(
+                        e.to_string(),
+                    ))
                 })?;
 
                 match state {
@@ -243,12 +313,9 @@ impl CrawlMonitorService for FirecrawlClient {
                                 markdown: scrape_data.markdown,
                                 html: scrape_data.html,
                                 metadata: crate::api::models::crawl_model::CrawlMetadata {
-                                    title: scrape_data.metadata.title.clone(),
-                                    language: scrape_data.metadata.language,
                                     keywords: None, // This would need to be populated from extra metadata
                                     robots: None,
                                     og_image: None,
-                                    page_title: scrape_data.metadata.title,
                                     author: None,
                                     published_date: None,
                                     modified_date: None,
@@ -261,7 +328,7 @@ impl CrawlMonitorService for FirecrawlClient {
                     }
                     CrawlState::Failed { error, .. } => {
                         break Err(crate::errors::FirecrawlError::ApiError(
-                            crate::errors::ApiError::Other(anyhow!("Crawl failed: {}", error)),
+                            crate::errors::ApiError::Other(format!("Crawl failed: {}", error)),
                         ));
                     }
                     CrawlState::InProgress {
